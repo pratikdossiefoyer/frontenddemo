@@ -1,19 +1,15 @@
 pipeline {
     agent any
-    
-    tools {
-        nodejs 'NodeJS'
-    }
-    
+
     environment {
         DOCKER_IMAGE = 'react-app'
-        DOCKER_TAG = "${BUILD_NUMBER}"
+        DOCKER_TAG = 'latest'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/pratikdossiefoyer/frontenddemo.git'
+                checkout scm
             }
         }
 
@@ -23,12 +19,24 @@ pipeline {
             }
         }
 
+        stage('Code Quality') {
+            steps {
+                sh 'npm run lint || true'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'npm test -- --watchAll=false || true'
+            }
+        }
+
         stage('Build') {
             steps {
                 sh 'npm run build'
             }
         }
-        
+
         stage('Build Docker Image') {
             steps {
                 script {
@@ -37,16 +45,28 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Run Docker Container') {
             steps {
                 script {
                     sh """
                         docker stop ${DOCKER_IMAGE} || true
                         docker rm ${DOCKER_IMAGE} || true
-                        docker run -d -p 3000:80 --name ${DOCKER_IMAGE} ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker run -d -p 80:80 --name ${DOCKER_IMAGE} ${DOCKER_IMAGE}:${DOCKER_TAG}
                     """
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
